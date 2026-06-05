@@ -26,7 +26,7 @@ def sev(v):
 def _base(fig, h=260, legend=False, top=10):
     fig.update_layout(
         height=h, margin=dict(l=10, r=14, t=top, b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="#ffffff", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family=FONT, color=INK, size=13),
         showlegend=legend,
         legend=dict(orientation="h", y=1.14, x=0, font=dict(size=12)),

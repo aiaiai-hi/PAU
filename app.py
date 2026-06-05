@@ -153,9 +153,11 @@ section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:
 .card .card-h { margin:8px 0 4px; }
 
 /* ---- белый фон у карточек (bordered containers) ---- */
-[data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff !important; border:1px solid #e4ebe6 !important;
+div[data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff !important; border:1px solid #e4ebe6 !important;
    border-radius:16px; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05);
    height:100%; box-sizing:border-box; }
+div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
+   background:#ffffff !important; border-radius:15px; }
 
 /* ====== таблицы множителей / сравнения (HTML) ====== */
 .mtab { font-size:13px; }

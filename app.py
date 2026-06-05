@@ -148,12 +148,14 @@ section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:
 
 /* ---- карточка с гарантированно белым фоном (HTML) ---- */
 .card { background:#ffffff; border:1px solid #e4ebe6; border-radius:16px; padding:6px 18px 12px;
-   box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05); }
+   box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05);
+   height:100%; box-sizing:border-box; }
 .card .card-h { margin:8px 0 4px; }
 
 /* ---- белый фон у карточек (bordered containers) ---- */
 [data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff !important; border:1px solid #e4ebe6 !important;
-   border-radius:16px; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05); }
+   border-radius:16px; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05);
+   height:100%; box-sizing:border-box; }
 
 /* ====== таблицы множителей / сравнения (HTML) ====== */
 .mtab { font-size:13px; }
@@ -185,6 +187,11 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_cont
 section[data-testid="stSidebar"] button[kind="segmented_controlActive"],
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_controlActive"] {
    background:#1A9E4B !important; color:#ffffff !important; border:1px solid #1A9E4B !important; }
+
+/* ---- равная высота блоков в одной строке ---- */
+[data-testid="stHorizontalBlock"] { align-items: stretch; }
+[data-testid="stHorizontalBlock"] > [data-testid="column"] { display: flex; flex-direction: column; }
+[data-testid="stHorizontalBlock"] > [data-testid="column"] > div { flex: 1; display: flex; flex-direction: column; }
 </style>""", unsafe_allow_html=True)
 
 # ------------------------------ состояние ------------------------------
@@ -415,6 +422,17 @@ def html_prev_table(rows):
     return f'<div class="mtab">{h}{body}</div>'
 
 
+def html_prev_simple_table(rows):
+    gt = "grid-template-columns:2.2fr .7fr .8fr"
+    h = (f'<div class="mh" style="{gt}"><div>Отклонение</div>'
+         f'<div class="nu">Моя</div><div class="nu">Динамика</div></div>')
+    body = "".join(
+        f'<div class="mr" style="{gt}"><div class="nm">{r["name"]}</div>'
+        f'<div class="nu"><span class="pill o">{r["prevalence"]:.2f}%</span></div>'
+        f'{_dyn_cell(r["prevalence_dyn"])}</div>' for r in rows)
+    return f'<div class="mtab">{h}{body}</div>'
+
+
 def _card_html(title, inner):
     return f'<div class="card"><div class="card-h">{title}</div>{inner}</div>'
 
@@ -423,23 +441,32 @@ def office_top3_block():
     rows = M.office_top3()
     st.markdown('<div class="banner">ТОП-3 отклонения, требующих первоочередного внимания</div>',
                 unsafe_allow_html=True)
+    # Ряд 1: Оценка | По сравнению с Банком — flex для гарантированной равной высоты
+    st.markdown(
+        '<div style="display:flex;gap:1rem;align-items:stretch;">'
+        f'<div style="flex:1;min-width:0;">{_card_html("Оценка работы по отклонению, балл", html_score_table(rows))}</div>'
+        f'<div style="flex:1;min-width:0;">{_card_html("По сравнению с Банком", html_compare_table(rows))}</div>'
+        '</div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
+    # Ряд 2: Динамика (белый фон) | Пораженность
     a, b = st.columns(2)
     with a:
-        st.markdown(_card_html("Оценка работы по отклонению, балл", html_score_table(rows)),
-                    unsafe_allow_html=True)
-    with b:
         with st.container(border=True):
             card_header(st, "Динамика оценки ТОП-3")
             st.plotly_chart(V.top3_dynamics(), width="stretch", config=PLOT_CFG)
-    a, b = st.columns(2)
-    with a:
-        st.markdown(_card_html("По сравнению с Банком", html_compare_table(rows)), unsafe_allow_html=True)
     with b:
-        st.markdown(_card_html("Вес отклонения", html_weight_table(rows)), unsafe_allow_html=True)
-    a, b = st.columns(2)
-    with a:
-        st.markdown(_card_html("Срок жизни (повтор.)", html_life_table(rows)), unsafe_allow_html=True)
-    with b:
+        st.markdown(_card_html("Пораженность", html_prev_simple_table(rows)), unsafe_allow_html=True)
+    st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
+    # Ряд 3: Вес | Срок жизни — flex для гарантированной равной высоты
+    st.markdown(
+        '<div style="display:flex;gap:1rem;align-items:stretch;">'
+        f'<div style="flex:1;min-width:0;">{_card_html("Вес отклонения", html_weight_table(rows))}</div>'
+        f'<div style="flex:1;min-width:0;">{_card_html("Срок жизни (повтор.)", html_life_table(rows))}</div>'
+        '</div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
+    # Ряд 4: Пораженность отклонением, % (половина ширины)
+    c1, _c2 = st.columns(2)
+    with c1:
         st.markdown(_card_html("Пораженность отклонением, %", html_prev_table(rows)), unsafe_allow_html=True)
 
 

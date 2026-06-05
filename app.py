@@ -28,7 +28,8 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
 html, body, [class*="css"] { font-family:'Manrope',system-ui,sans-serif; }
 .stApp { background:#f3f6f4; }
-.block-container { padding-top:1.2rem; padding-bottom:2rem; max-width:1500px; }
+.block-container { padding-top:1rem; padding-bottom:2rem; padding-left:1.6rem !important;
+   padding-right:1.6rem !important; max-width:1620px; }
 
 /* ---- сайдбар тёмный ---- */
 [data-testid="stSidebar"] { background:#0f1a14; }
@@ -45,12 +46,12 @@ html, body, [class*="css"] { font-family:'Manrope',system-ui,sans-serif; }
 .h-sub { font-size:13px; color:#5a6b62; margin-bottom:10px; }
 
 /* ---- KPI карточки ---- */
-.kpi { background:#fff; border:1px solid #e4ebe6; border-radius:14px; padding:15px 17px;
+.kpi { background:#fff; border:1px solid #e4ebe6; border-radius:14px; padding:11px 16px 12px;
    box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05); }
-.kpi .lab { font-size:12px; color:#5a6b62; font-weight:600; line-height:1.3; min-height:32px; }
-.kpi .val { font-size:30px; font-weight:800; letter-spacing:-.5px; margin-top:4px;
+.kpi .lab { font-size:12px; color:#5a6b62; font-weight:600; line-height:1.2; min-height:30px; }
+.kpi .val { font-size:30px; font-weight:800; letter-spacing:-.5px; margin-top:0;
    font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',monospace; }
-.kpi .trend { font-size:12px; margin-top:2px; font-weight:700; color:#8a988f; }
+.kpi .trend { font-size:12px; margin-top:1px; font-weight:700; color:#8a988f; }
 
 /* ---- заголовок карточки ---- */
 .card-h { font-weight:800; font-size:14.5px; display:flex; align-items:center; gap:8px; margin-bottom:2px; }
@@ -144,6 +145,11 @@ section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:
 
 /* ---- бренд-строка ---- */
 .brandbar { font-weight:800; font-size:17px; color:#13201a; line-height:1.3; margin:2px 0 6px; }
+
+/* ---- карточка с гарантированно белым фоном (HTML) ---- */
+.card { background:#ffffff; border:1px solid #e4ebe6; border-radius:16px; padding:6px 18px 12px;
+   box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05); }
+.card .card-h { margin:8px 0 4px; }
 
 /* ---- белый фон у карточек (bordered containers) ---- */
 [data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff; border:1px solid #e4ebe6 !important;
@@ -309,18 +315,19 @@ def view_bank():
     kpi(c[2], "Офисов в жёлтой зоне", bs["y"], "требуют внимания", "y")
     kpi(c[3], "Офисов в красной зоне", bs["r"], "▼ 3 офиса за период", "r")
 
-    st.write("")
-    left, right = st.columns([1.4, 1])
+    left, right = st.columns([1.12, 1])
     with left:
-        with st.container(border=True):
-            card_header(st, "Рейтинг филиалов", "выберите филиал ниже, чтобы провалиться")
-            st.markdown(html_rank_table(brs), unsafe_allow_html=True)
-            st.selectbox("Провалиться в филиал", ["— выберите филиал —"] + list(brs.branch),
-                         key="bank_drill", on_change=_bank_drill, label_visibility="collapsed")
+        st.markdown(
+            '<div class="card"><div class="card-h">Рейтинг филиалов'
+            '<span class="sub">выберите филиал ниже, чтобы провалиться</span></div>'
+            + html_rank_table(brs) + '</div>', unsafe_allow_html=True)
+        st.selectbox("Провалиться в филиал", ["— выберите филиал —"] + list(brs.branch),
+                     key="bank_drill", on_change=_bank_drill, label_visibility="collapsed")
     with right:
-        with st.container(border=True):
-            card_header(st, "Топ отклонений по Банку", "средняя пораженность, %")
-            st.markdown(html_dev_list(M.bank_top_deviations()), unsafe_allow_html=True)
+        st.markdown(
+            '<div class="card"><div class="card-h">Топ отклонений по Банку'
+            '<span class="sub">средняя пораженность, %</span></div>'
+            + html_dev_list(M.bank_top_deviations()) + '</div>', unsafe_allow_html=True)
 
 
 # ------------------------- общий блок: ТОП-3 офиса -------------------------

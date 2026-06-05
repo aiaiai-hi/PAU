@@ -179,6 +179,25 @@ def multipliers(items):
     return pd.DataFrame(rows)
 
 
+def office_top3():
+    """Канонический ТОП-3 для карточки доп. офиса (числа как на эталоне-скрине)."""
+    rows = [
+        dict(name="Низкая доля операций, подписанных с использованием БМО",
+             score=9.80, delta=1.2, weight=10, prevalence=51.45, prevalence_dyn=-13.05, prevalence_bank=35.38),
+        dict(name="Длительные вакансии сотрудников ВСП",
+             score=2.31, delta=-1.2, weight=1, prevalence=13.64, prevalence_dyn=4.55, prevalence_bank=23.59),
+        dict(name="Высокая доля нарушений стандарта ИС СТАТУС",
+             score=1.88, delta=-0.1, weight=8, prevalence=11.36, prevalence_dyn=2.27, prevalence_bank=9.86),
+    ]
+    for r in rows:
+        r["bank"] = round(r["score"] * 0.78, 2)
+        r["diff"] = round(r["score"] - r["bank"], 2)
+        r["life"] = round(r["score"] * 0.8, 2)
+        r["life_dyn"] = 0.40 if r["delta"] > 0 else 1.20
+        r["life_bank"] = round(r["score"] * 0.5, 2)
+    return rows
+
+
 # ----------------------- детализация по отклонениям -----------------------
 def _quarter_of(month):          # month 1..12 -> 0..3
     return (month - 1) // 3

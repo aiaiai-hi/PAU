@@ -93,8 +93,8 @@ html, body, [class*="css"] { font-family:'Manrope',system-ui,sans-serif; }
 .demo { font-size:12px; color:#8a6d1f; background:#fff7e3; border:1px solid #f0e2b4;
    border-radius:9px; padding:8px 12px; }
 
-/* ---- убираем верхнюю плашку Streamlit (deploy/share), чтобы не перекрывала меню ---- */
-header[data-testid="stHeader"] { height:0; background:transparent; }
+/* ---- убираем служебный тулбар Streamlit (deploy/share), но НЕ ломаем шапку ---- */
+header[data-testid="stHeader"] { background:transparent; }
 [data-testid="stToolbar"], [data-testid="stStatusWidget"], [data-testid="stDecoration"] { display:none !important; }
 #MainMenu, footer { visibility:hidden; }
 
@@ -141,6 +141,30 @@ section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:
 .dv-bar { flex:1; height:8px; border-radius:6px; background:#e4ebe6; overflow:hidden; min-width:50px; }
 .dv-bar i { display:block; height:100%; border-radius:6px; }
 .dv-num { font-family:'JetBrains Mono',monospace; font-weight:700; text-align:right; }
+
+/* ---- бренд-строка ---- */
+.brandbar { font-weight:800; font-size:17px; color:#13201a; line-height:1.3; margin:2px 0 6px; }
+
+/* ---- белый фон у карточек (bordered containers) ---- */
+[data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff; border:1px solid #e4ebe6 !important;
+   border-radius:16px; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05); }
+
+/* ---- сегментные переключатели: активный = зелёный, неактивный = светлый (верх) ---- */
+button[kind="segmented_control"], button[data-testid="stBaseButton-segmented_control"] {
+   background:#eef3f0 !important; color:#5a6b62 !important; border:1px solid #e4ebe6 !important;
+   font-weight:700 !important; }
+button[kind="segmented_controlActive"], button[data-testid="stBaseButton-segmented_controlActive"] {
+   background:#1A9E4B !important; color:#ffffff !important; border:1px solid #1A9E4B !important;
+   font-weight:800 !important; }
+[data-testid="stButtonGroup"] button { padding:10px 22px !important; min-height:42px; }
+
+/* ---- в сайдбаре неактивные кнопки периода — тёмные, активная — зелёная ---- */
+section[data-testid="stSidebar"] button[kind="segmented_control"],
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_control"] {
+   background:#1a2a21 !important; color:#bcd2c6 !important; border:1px solid #2c3d33 !important; }
+section[data-testid="stSidebar"] button[kind="segmented_controlActive"],
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_controlActive"] {
+   background:#1A9E4B !important; color:#ffffff !important; border:1px solid #1A9E4B !important; }
 </style>""", unsafe_allow_html=True)
 
 # ------------------------------ состояние ------------------------------
@@ -168,7 +192,7 @@ def chip_g(text="Зелёная зона"):
 with st.sidebar:
     st.markdown('<div class="side-title">Фильтры выборки</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="side-h">Период статистики · для «Обзора»</div>', unsafe_allow_html=True)
+    st.markdown('<div class="side-h">Выберите период статистики</div>', unsafe_allow_html=True)
     ptype = seg("Тип периода", ["Неделя", "Месяц", "Квартал"], key="ptype")
     if ptype == "Неделя":
         wk = st.selectbox("Неделя отчёта", M.WEEKS, index=M.WEEKS.index(24),
@@ -531,13 +555,9 @@ def chat_view(scope):
 
 
 # ------------------------------- ROUTER -------------------------------
-top = st.container()
-with top:
-    bc, sc = st.columns([0.62, 0.38])
-    bc.markdown('<div style="font-weight:800;font-size:16px;color:#13201a;padding-top:6px">'
-                '🟢&nbsp; Мониторинг качества работы руководителей ВСП</div>', unsafe_allow_html=True)
-    with sc:
-        level = seg("Уровень", ["Банк", "Филиал", "Доп. офис"], key="level")
+st.markdown('<div class="brandbar">🟢&nbsp; Рейтинг ПАУ. Интегральная оценка качества работы '
+            'руководителя с отклонениями ИС СТАТУС</div>', unsafe_allow_html=True)
+level = seg("Уровень", ["Банк", "Филиал", "Доп. офис"], key="level")
 st.divider()
 
 if level == "Банк":

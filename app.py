@@ -86,8 +86,8 @@ html, body, [class*="css"] { font-family:'Manrope',system-ui,sans-serif; }
 .chip.g { background:#e6f6ec; color:#1c7d41; } .chip.g .led { background:#3bb564; }
 
 /* ---- вкладки ---- */
-.stTabs [data-baseweb="tab-list"] { gap:4px; }
-.stTabs [data-baseweb="tab"] { font-weight:700; }
+.stTabs [data-baseweb="tab-list"] { gap:28px; }
+.stTabs [data-baseweb="tab"] { font-weight:700; padding-left:4px; padding-right:4px; }
 .stTabs [aria-selected="true"] { color:#157a3a; }
 
 /* демо-плашка ассистента */
@@ -152,8 +152,22 @@ section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:
 .card .card-h { margin:8px 0 4px; }
 
 /* ---- белый фон у карточек (bordered containers) ---- */
-[data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff; border:1px solid #e4ebe6 !important;
+[data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff !important; border:1px solid #e4ebe6 !important;
    border-radius:16px; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05); }
+
+/* ====== таблицы множителей / сравнения (HTML) ====== */
+.mtab { font-size:13px; }
+.mtab .mh, .mtab .mr { display:grid; align-items:center; gap:10px; padding:12px 4px; }
+.mtab .mh { color:#8a988f; font-size:11px; text-transform:uppercase; letter-spacing:.4px;
+   font-weight:700; border-bottom:1px solid #e4ebe6; }
+.mtab .mr { border-bottom:1px solid #eef2ef; }
+.mtab .mr:last-child { border-bottom:none; }
+.mtab .nm { font-weight:600; color:#13201a; line-height:1.25; }
+.mtab .nu { font-family:'JetBrains Mono',monospace; font-weight:700; text-align:right; }
+.mtab .pill { display:inline-block; font-family:'JetBrains Mono',monospace; font-weight:700;
+   padding:3px 9px; border-radius:7px; }
+.mtab .pill.o { background:#fdeee2; color:#b95418; }
+.mtab .up { color:#e0463a; } .mtab .down { color:#3bb564; } .mtab .zero { color:#8a988f; }
 
 /* ---- сегментные переключатели: активный = зелёный, неактивный = светлый (верх) ---- */
 button[kind="segmented_control"], button[data-testid="stBaseButton-segmented_control"] {
@@ -315,6 +329,7 @@ def view_bank():
     kpi(c[2], "Офисов в жёлтой зоне", bs["y"], "требуют внимания", "y")
     kpi(c[3], "Офисов в красной зоне", bs["r"], "▼ 3 офиса за период", "r")
 
+    st.markdown('<div style="height:18px"></div>', unsafe_allow_html=True)
     left, right = st.columns([1.12, 1])
     with left:
         st.markdown(
@@ -331,33 +346,101 @@ def view_bank():
 
 
 # ------------------------- общий блок: ТОП-3 офиса -------------------------
-def office_top3_block(vsp, ptype):
-    top = M.office_top_deviations(vsp, ptype, n=3)
+def _delta_cell(d):
+    if d > 0:
+        return f'<div class="nu up">▲ +{d}</div>'
+    if d < 0:
+        return f'<div class="nu down">▼ {d}</div>'
+    return '<div class="nu zero">0</div>'
+
+
+def _dyn_cell(v, good_negative=True):
+    """Цветная ячейка динамики: good_negative=True → отрицательное зелёное."""
+    cls = ("down" if v < 0 else "up") if good_negative else ("up" if v < 0 else "down")
+    sign = f"{v:+.2f}".rstrip("0").rstrip(".") if v else "0"
+    return f'<div class="nu {cls}">{sign}</div>'
+
+
+def html_score_table(rows):
+    gt = "grid-template-columns:2.5fr .7fr .8fr"
+    h = f'<div class="mh" style="{gt}"><div>Отклонение</div><div class="nu">Балл</div><div class="nu">Динамика</div></div>'
+    body = "".join(
+        f'<div class="mr" style="{gt}"><div class="nm">{r["name"]}</div>'
+        f'<div class="nu">{r["score"]:.2f}</div>{_delta_cell(r["delta"])}</div>' for r in rows)
+    return f'<div class="mtab">{h}{body}</div>'
+
+
+def html_compare_table(rows):
+    gt = "grid-template-columns:2.2fr .7fr .7fr .7fr"
+    h = (f'<div class="mh" style="{gt}"><div>Отклонение</div><div class="nu">Моя</div>'
+         f'<div class="nu">По Банку</div><div class="nu">Разница</div></div>')
+    body = "".join(
+        f'<div class="mr" style="{gt}"><div class="nm">{r["name"]}</div>'
+        f'<div class="nu"><span class="pill o">{r["score"]:.2f}</span></div>'
+        f'<div class="nu">{r["bank"]:.2f}</div>'
+        f'<div class="nu up">{r["diff"]:.2f}</div></div>' for r in rows)
+    return f'<div class="mtab">{h}{body}</div>'
+
+
+def html_weight_table(rows):
+    gt = "grid-template-columns:2.7fr .5fr"
+    h = f'<div class="mh" style="{gt}"><div>Отклонение</div><div class="nu">Вес</div></div>'
+    body = "".join(
+        f'<div class="mr" style="{gt}"><div class="nm">{r["name"]}</div>'
+        f'<div class="nu">{r["weight"]}</div></div>' for r in rows)
+    return f'<div class="mtab">{h}{body}</div>'
+
+
+def html_life_table(rows):
+    gt = "grid-template-columns:2.2fr .7fr .8fr .7fr"
+    h = (f'<div class="mh" style="{gt}"><div>Отклонение</div><div class="nu">Моя</div>'
+         f'<div class="nu">Динамика</div><div class="nu">По Банку</div></div>')
+    body = "".join(
+        f'<div class="mr" style="{gt}"><div class="nm">{r["name"]}</div>'
+        f'<div class="nu">{r["life"]:.2f}</div>'
+        f'<div class="nu down">{r["life_dyn"]:.2f}</div>'
+        f'<div class="nu">{r["life_bank"]:.2f}</div></div>' for r in rows)
+    return f'<div class="mtab">{h}{body}</div>'
+
+
+def html_prev_table(rows):
+    gt = "grid-template-columns:2.2fr .7fr .8fr .7fr"
+    h = (f'<div class="mh" style="{gt}"><div>Отклонение</div><div class="nu">Моя</div>'
+         f'<div class="nu">Динамика</div><div class="nu">По Банку</div></div>')
+    body = "".join(
+        f'<div class="mr" style="{gt}"><div class="nm">{r["name"]}</div>'
+        f'<div class="nu"><span class="pill o">{r["prevalence"]:.2f}</span></div>'
+        f'{_dyn_cell(r["prevalence_dyn"])}'
+        f'<div class="nu">{r["prevalence_bank"]:.2f}</div></div>' for r in rows)
+    return f'<div class="mtab">{h}{body}</div>'
+
+
+def _card_html(title, inner):
+    return f'<div class="card"><div class="card-h">{title}</div>{inner}</div>'
+
+
+def office_top3_block():
+    rows = M.office_top3()
     st.markdown('<div class="banner">ТОП-3 отклонения, требующих первоочередного внимания</div>',
                 unsafe_allow_html=True)
-    if top.empty:
-        st.info("За выбранный тип периода нет показателей этой грануляности.")
-        return
-    names = top.name.tolist()
     a, b = st.columns(2)
     with a:
-        chart_card("Оценка работы по отклонению, балл",
-                   V.hbar(names, top.score.tolist(), fmt="{:.2f}", xtitle="балл"))
+        st.markdown(_card_html("Оценка работы по отклонению, балл", html_score_table(rows)),
+                    unsafe_allow_html=True)
     with b:
-        cmp = M.comparison_with_bank(names)
-        chart_card("По сравнению с Банком",
-                   V.comparison(cmp.name.tolist(), cmp.mine.tolist(), cmp.bank.tolist()),
-                   sub="Моя / По Банку")
-    mult = M.multipliers(names)
+        with st.container(border=True):
+            card_header(st, "Динамика оценки ТОП-3")
+            st.plotly_chart(V.top3_dynamics(), width="stretch", config=PLOT_CFG)
     a, b = st.columns(2)
     with a:
-        chart_card("Множитель · Вес отклонения",
-                   V.hbar(mult.name.tolist(), mult.weight.tolist(), fmt="{:.0f}",
-                          colors=[GREEN] * len(mult), xtitle="вес"))
+        st.markdown(_card_html("По сравнению с Банком", html_compare_table(rows)), unsafe_allow_html=True)
     with b:
-        chart_card("Множитель · Пораженность, %",
-                   V.comparison(mult.name.tolist(), mult.prevalence.tolist(),
-                                mult.prevalence_bank.tolist()), sub="Моя / По Банку")
+        st.markdown(_card_html("Вес отклонения", html_weight_table(rows)), unsafe_allow_html=True)
+    a, b = st.columns(2)
+    with a:
+        st.markdown(_card_html("Срок жизни (повтор.)", html_life_table(rows)), unsafe_allow_html=True)
+    with b:
+        st.markdown(_card_html("Пораженность отклонением, %", html_prev_table(rows)), unsafe_allow_html=True)
 
 
 # ----------------------- общий блок: детализация -----------------------
@@ -422,7 +505,7 @@ def office_overview(vsp, ptype):
     with right:
         chart_card("Динамика рейтинга внутри зон интегральной оценки",
                    V.dynamics(dates, ranks))
-    office_top3_block(vsp, ptype)
+    office_top3_block()
 
 
 def view_office(ptype, period_label):

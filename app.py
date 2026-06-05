@@ -1,0 +1,453 @@
+"""
+Дашборд мониторинга качества работы руководителей ВСП — концепция D.
+Запуск:  streamlit run app.py
+
+Структура повторяет согласованный прототип:
+  • тёмный сайдбар с фильтрами (Период статистики для «Обзора» + организация);
+  • три уровня: Банк / Филиал / Доп. офис (переключатель + проваливание по кнопкам);
+  • внутри Филиала и Доп. офиса под-вкладки: Обзор / Детализация по отклонениям / Ассистент;
+  • визуализации на Plotly (спидометр, динамика по зонам, карта-хитмап, бары), не таблицы.
+"""
+import os
+from datetime import date
+
+import streamlit as st
+
+import mock_data as M
+import viz as V
+
+st.set_page_config(page_title="Мониторинг качества руководителей ВСП",
+                   layout="wide", initial_sidebar_state="expanded")
+
+GREEN = "#1A9E4B"; TL_G = "#3bb564"; TL_Y = "#f2c12e"; TL_R = "#e0463a"
+PLOT_CFG = {"displayModeBar": False, "responsive": True}
+
+# --------------------------------- стиль ---------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+html, body, [class*="css"] { font-family:'Manrope',system-ui,sans-serif; }
+.stApp { background:#f3f6f4; }
+.block-container { padding-top:1.2rem; padding-bottom:2rem; max-width:1500px; }
+
+/* ---- сайдбар тёмный ---- */
+[data-testid="stSidebar"] { background:#0f1a14; }
+[data-testid="stSidebar"] * { color:#dce8e1; }
+[data-testid="stSidebar"] .side-title { font-weight:800; font-size:15px; color:#fff; margin-bottom:6px; }
+[data-testid="stSidebar"] .side-h { color:#8fb3a0; font-size:11px; text-transform:uppercase;
+   letter-spacing:1px; font-weight:700; margin:18px 0 6px; }
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] input { background:#1a2a21 !important; border-color:#2c3d33 !important; color:#eaf2ec !important; }
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { color:#9fb8aa; font-weight:600; font-size:12px; }
+
+/* ---- заголовки уровней ---- */
+.h1 { font-size:22px; font-weight:800; letter-spacing:-.4px; margin:2px 0 2px; color:#13201a; }
+.h-sub { font-size:13px; color:#5a6b62; margin-bottom:10px; }
+
+/* ---- KPI карточки ---- */
+.kpi { background:#fff; border:1px solid #e4ebe6; border-radius:14px; padding:15px 17px;
+   box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05); }
+.kpi .lab { font-size:12px; color:#5a6b62; font-weight:600; line-height:1.3; min-height:32px; }
+.kpi .val { font-size:30px; font-weight:800; letter-spacing:-.5px; margin-top:4px;
+   font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',monospace; }
+.kpi .trend { font-size:12px; margin-top:2px; font-weight:700; color:#8a988f; }
+
+/* ---- заголовок карточки ---- */
+.card-h { font-weight:800; font-size:14.5px; display:flex; align-items:center; gap:8px; margin-bottom:2px; }
+.card-h .sub { font-weight:500; color:#8a988f; font-size:12px; margin-left:auto; }
+
+/* ---- зелёный баннер ---- */
+.banner { background:linear-gradient(135deg,#1A9E4B,#157a3a); color:#fff; font-weight:800;
+   font-size:15px; padding:14px 18px; border-radius:12px; box-shadow:0 4px 16px rgba(26,158,75,.22);
+   margin:6px 0 4px; }
+
+/* ---- блок «Место в рейтинге» (зелёная плашка) ---- */
+.rankcard { background:linear-gradient(135deg,#1A9E4B,#157a3a); color:#fff; border-radius:14px;
+   padding:18px 22px; height:100%; }
+.rankcard .t { font-weight:700; font-size:13px; opacity:.92; }
+.rankcard .big { font-size:62px; font-weight:800; line-height:1; letter-spacing:-2px;
+   font-family:'JetBrains Mono',monospace; }
+.rankcard .of { font-size:17px; opacity:.85; font-weight:600; }
+.rankcard .mv { margin-top:10px; font-weight:800; font-size:14px; background:rgba(255,255,255,.16);
+   display:inline-block; padding:4px 11px; border-radius:20px; }
+.glabel { text-align:center; font-size:12.5px; font-weight:800; text-transform:uppercase;
+   letter-spacing:.5px; color:#5a6b62; margin-bottom:-6px; }
+
+/* ---- подсказка-календарь ---- */
+.cal-hint { background:#eef6f0; border:1px solid #d3e7da; border-left:4px solid #1A9E4B;
+   border-radius:10px; padding:11px 14px; font-size:13px; color:#5a6b62; line-height:1.45; }
+.cal-hint b { color:#157a3a; }
+
+/* ---- чипы светофора ---- */
+.chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700;
+   padding:4px 11px; border-radius:20px; }
+.chip .led { width:8px; height:8px; border-radius:50%; }
+.chip.g { background:#e6f6ec; color:#1c7d41; } .chip.g .led { background:#3bb564; }
+
+/* ---- вкладки ---- */
+.stTabs [data-baseweb="tab-list"] { gap:4px; }
+.stTabs [data-baseweb="tab"] { font-weight:700; }
+.stTabs [aria-selected="true"] { color:#157a3a; }
+
+/* демо-плашка ассистента */
+.demo { font-size:12px; color:#8a6d1f; background:#fff7e3; border:1px solid #f0e2b4;
+   border-radius:9px; padding:8px 12px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ------------------------------ состояние ------------------------------
+ss = st.session_state
+ss.setdefault("level", "Банк")
+ss.setdefault("branch", M.BRANCHES[0])
+ss.setdefault("office", None)
+
+
+def seg(label, options, key, default=None):
+    """Сегментный переключатель (с откатом на radio для старых версий Streamlit)."""
+    default = default or options[0]
+    if hasattr(st, "segmented_control"):
+        kwargs = {} if key in st.session_state else {"default": default}
+        val = st.segmented_control(label, options, key=key, label_visibility="collapsed", **kwargs)
+        return val or ss.get(key, default)
+    return st.radio(label, options, horizontal=True, key=key, label_visibility="collapsed")
+
+
+def chip_g(text="Зелёная зона"):
+    return f'<span class="chip g"><span class="led"></span>{text}</span>'
+
+
+# ------------------------------- сайдбар -------------------------------
+with st.sidebar:
+    st.markdown('<div class="side-title">Фильтры выборки</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="side-h">Период статистики · для «Обзора»</div>', unsafe_allow_html=True)
+    ptype = seg("Тип периода", ["Неделя", "Месяц", "Квартал"], key="ptype")
+    if ptype == "Неделя":
+        wk = st.selectbox("Неделя отчёта", M.WEEKS, index=M.WEEKS.index(24),
+                          format_func=lambda w: f"Неделя {w} · {M.week_label(w)}")
+        ss["sel_week"] = wk
+        period_label = f"неделя {wk} ({M.week_label(wk)}.{M.YEAR}) · недельные показатели"
+    elif ptype == "Месяц":
+        mo = st.selectbox("Месяц", ["Апрель", "Май", "Июнь", "Июль"], index=1)
+        period_label = f"{mo} {M.YEAR} · месячные показатели (без недельных)"
+    else:
+        q = st.selectbox("Квартал", ["1 кв.", "2 кв.", "3 кв.", "4 кв."], index=1)
+        period_label = f"{q} {M.YEAR} · квартальные показатели (без недельных и месячных)"
+    st.selectbox("Год", ["2026", "2025", "2024"], index=0, key="year")
+
+    st.markdown('<div class="side-h">Организация</div>', unsafe_allow_html=True)
+    st.selectbox("Рег. директор", ["Все"] + M.DIRECTORS, key="f_dir")
+    st.selectbox("Региональный филиал", ["Все"] + M.BRANCHES, key="f_fil")
+    st.selectbox("Рег. менеджер", ["Все"] + M.MGRS, key="f_mgr")
+    st.text_input("Поиск по ВСП / коду", placeholder="например, 8842", key="f_search")
+
+    st.markdown('<div class="side-h">Дополнительно</div>', unsafe_allow_html=True)
+    st.selectbox("Пилотная группа", ["Все", "Пилот", "Не пилот"], key="f_pilot")
+    st.selectbox("Вес отклонения", ["Все", "≥10", "5–9", "1–4"], key="f_weight")
+    st.button("Применить", type="primary", width="stretch")
+
+
+# ------------------------------- helpers UI -------------------------------
+def kpi(col, lab, val, trend="", light=""):
+    bar = {"g": TL_G, "y": TL_Y, "r": TL_R}.get(light, GREEN)
+    col.markdown(
+        f'<div class="kpi" style="border-left:4px solid {bar}">'
+        f'<div class="lab">{lab}</div><div class="val">{val}</div>'
+        f'<div class="trend">{trend}</div></div>', unsafe_allow_html=True)
+
+
+def card_header(container, title, sub=""):
+    container.markdown(f'<div class="card-h">{title}<span class="sub">{sub}</span></div>',
+                       unsafe_allow_html=True)
+
+
+def chart_card(title, fig, sub=""):
+    with st.container(border=True):
+        card_header(st, title, sub)
+        st.plotly_chart(fig, width="stretch", config=PLOT_CFG)
+
+
+# ------------------------------- уровень БАНК -------------------------------
+def view_bank():
+    bs = M.bank_summary()
+    brs = M.branches_summary()
+    st.markdown('<div class="h1">Сводка по Банку</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="h-sub">Агрегированные показатели качества · {bs["offices"]} офисов · '
+                f'{bs["obj_mon"]} объектов в мониторинге</div>', unsafe_allow_html=True)
+
+    c = st.columns(4)
+    kpi(c[0], "Средняя интегральная оценка", str(bs["avg"]).replace(".", ","), "▲ 2,4 к прошлой неделе")
+    kpi(c[1], "Офисов в зелёной зоне", f'{bs["g"]} / {bs["offices"]}',
+        f'{round(bs["g"]/bs["offices"]*100)}% сети', "g")
+    kpi(c[2], "Офисов в жёлтой зоне", bs["y"], "требуют внимания", "y")
+    kpi(c[3], "Офисов в красной зоне", bs["r"], "▼ 3 офиса за период", "r")
+
+    st.write("")
+    left, right = st.columns([1.35, 1])
+    with left:
+        with st.container(border=True):
+            card_header(st, "Рейтинг филиалов", "распределение офисов по зонам")
+            st.plotly_chart(V.branches_distribution(brs), width="stretch", config=PLOT_CFG)
+            st.caption("Провалиться в филиал:")
+            bcols = st.columns(3)
+            for i, row in brs.iterrows():
+                if bcols[i % 3].button(f'{row["rank"]}. {row["branch"]}',
+                                       key="drill_b_" + row["branch"], width="stretch"):
+                    ss.level = "Филиал"; ss.branch = row["branch"]; st.rerun()
+    with right:
+        td = M.bank_top_deviations()
+        chart_card("Топ отклонений по Банку",
+                   V.hbar(td.name.tolist(), td.prevalence.tolist(), fmt="{:.1f}", suffix="%",
+                          xtitle="средняя пораженность, %"),
+                   sub="по средней пораженности")
+        chart_card("Распределение сети по зонам",
+                   V.zones_donut(bs["g"], bs["y"], bs["r"]))
+
+
+# ------------------------- общий блок: ТОП-3 офиса -------------------------
+def office_top3_block(vsp, ptype):
+    top = M.office_top_deviations(vsp, ptype, n=3)
+    st.markdown('<div class="banner">ТОП-3 отклонения, требующих первоочередного внимания</div>',
+                unsafe_allow_html=True)
+    if top.empty:
+        st.info("За выбранный тип периода нет показателей этой грануляности.")
+        return
+    names = top.name.tolist()
+    a, b = st.columns(2)
+    with a:
+        chart_card("Оценка работы по отклонению, балл",
+                   V.hbar(names, top.score.tolist(), fmt="{:.2f}", xtitle="балл"))
+    with b:
+        cmp = M.comparison_with_bank(names)
+        chart_card("По сравнению с Банком",
+                   V.comparison(cmp.name.tolist(), cmp.mine.tolist(), cmp.bank.tolist()),
+                   sub="Моя / По Банку")
+    mult = M.multipliers(names)
+    a, b = st.columns(2)
+    with a:
+        chart_card("Множитель · Вес отклонения",
+                   V.hbar(mult.name.tolist(), mult.weight.tolist(), fmt="{:.0f}",
+                          colors=[GREEN] * len(mult), xtitle="вес"))
+    with b:
+        chart_card("Множитель · Пораженность, %",
+                   V.comparison(mult.name.tolist(), mult.prevalence.tolist(),
+                                mult.prevalence_bank.tolist()), sub="Моя / По Банку")
+
+
+# ----------------------- общий блок: детализация -----------------------
+def detail_view(scope_key, label, topN):
+    c1, c2, _ = st.columns([1, 1, 2])
+    cs = c1.date_input("Начало периода", value=date(2026, 5, 1), key=scope_key + "_cs")
+    ce = c2.date_input("Конец периода", value=date(2026, 5, 31), key=scope_key + "_ce")
+    cs_s, ce_s = str(cs), str(ce)
+    st.markdown(f'<div class="cal-hint">Выберите период, за который показать отклонения. '
+                f'В карте — все показатели: недельные (Н), месячные (М), квартальные (К) — '
+                f'за <b>{cs.strftime("%d.%m.%Y")} – {ce.strftime("%d.%m.%Y")}</b>.</div>',
+                unsafe_allow_html=True)
+    st.write("")
+
+    cols, rows, wcount = M.detail_matrix(scope_key, cs_s, ce_s)
+    chart_card(f"Карта отклонений за период", V.heatmap(cols, rows), sub=label)
+
+    a, b = st.columns(2)
+    with a:
+        reg = M.regular_deviations(rows, wcount, 6)
+        with st.container(border=True):
+            card_header(st, "Регулярные отклонения", "частота в ТОП-3 по неделям периода")
+            if reg:
+                st.plotly_chart(V.freq_bar(reg, wcount), width="stretch", config=PLOT_CFG)
+            else:
+                st.caption("Нет регулярных отклонений за период.")
+    with b:
+        stab = M.stable_deviations(rows, 6)
+        with st.container(border=True):
+            card_header(st, "Стабильно в норме", "ни разу не в ТОП-3")
+            if stab:
+                for r in stab:
+                    st.markdown(
+                        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                        f'padding:7px 2px;border-bottom:1px solid #eef2ef;font-size:13px">'
+                        f'<span>{r["name"]}</span>{chip_g("в норме")}</div>', unsafe_allow_html=True)
+            else:
+                st.caption("—")
+
+    byW, byM, byQ = M.top_by_period(rows, topN)
+    chart_card(f"ТОП-{topN} по периодам", V.top_periods(byW, byM, byQ, topN), sub=label)
+
+
+# ------------------------------- УРОВЕНЬ ОФИСА -------------------------------
+def office_overview(vsp, ptype):
+    score = 58
+    dates, ranks = M.office_dynamics(vsp)
+    left, right = st.columns([1, 1])
+    with left:
+        with st.container(border=True):
+            card_header(st, "Интегральная оценка и место в рейтинге")
+            rc, gc = st.columns([1, 1.15])
+            rc.markdown(
+                '<div class="rankcard"><div class="t">Место в рейтинге</div>'
+                '<div class="big">19</div><div class="of">из 179</div>'
+                '<div class="mv">▼ −3 позиции</div></div>', unsafe_allow_html=True)
+            with gc:
+                st.markdown('<div class="glabel">Интегральная оценка</div>', unsafe_allow_html=True)
+                st.plotly_chart(V.gauge(score), width="stretch", config=PLOT_CFG)
+                st.markdown(f'<div style="text-align:center;margin-top:-8px">{chip_g()}</div>',
+                            unsafe_allow_html=True)
+    with right:
+        chart_card("Динамика рейтинга внутри зон интегральной оценки",
+                   V.dynamics(dates, ranks))
+    office_top3_block(vsp, ptype)
+
+
+def view_office(ptype, period_label):
+    if not ss.office:
+        ss.office = M.offices_of_branch(ss.branch).vsp.iloc[0]
+    vsp = ss.office
+    bc1, bc2 = st.columns([0.16, 0.84])
+    if bc1.button("← К филиалу", width="stretch"):
+        ss.level = "Филиал"; st.rerun()
+    bc2.markdown(f'<div class="h1">{vsp}</div>', unsafe_allow_html=True)
+
+    tabs = st.tabs(["Обзор", "Детализация по отклонениям", "Ассистент"])
+    with tabs[0]:
+        st.markdown(f'<div class="h-sub">Обзор · период: {period_label}</div>', unsafe_allow_html=True)
+        office_overview(vsp, ptype)
+    with tabs[1]:
+        st.markdown('<div class="h-sub">Все показатели за период из календаря ниже</div>',
+                    unsafe_allow_html=True)
+        detail_view("off:" + vsp, "по доп. офису", 3)
+    with tabs[2]:
+        chat_view("доп. офис " + vsp)
+
+
+# ------------------------------- УРОВЕНЬ ФИЛИАЛА -------------------------------
+def branch_overview(branch, ptype):
+    brs = M.branches_summary().set_index("branch").loc[branch]
+    c = st.columns(4)
+    kpi(c[0], "Позиция филиала", f'{int(brs["rank"])} / 6',
+        f'{"▲" if brs["delta"]<=0 else "▼"} {abs(int(brs["delta"]))} поз.')
+    kpi(c[1], "Зелёная зона", int(brs["g"]), "", "g")
+    kpi(c[2], "Жёлтая зона", int(brs["y"]), "", "y")
+    kpi(c[3], "Красная зона", int(brs["r"]), "", "r")
+
+    st.write("")
+    # ТОП-5 проседающих по филиалу (из карты отклонений) + сравнение с Банком
+    cols, rows, wc = M.detail_matrix("br:" + branch, "2026-05-01", "2026-05-31")
+    top5 = sorted(rows, key=lambda r: -r["avg"])[:5]
+    a, b = st.columns(2)
+    with a:
+        chart_card("ТОП-5 отклонений филиала",
+                   V.hbar([r["name"] for r in top5], [r["avg"] for r in top5],
+                          fmt="{:.2f}", xtitle="средний балл по офисам"),
+                   sub="среднее по офисам")
+    with b:
+        items = ["Низкая доля операций, подписанных с использованием БМО",
+                 "Длительные вакансии сотрудников ВСП",
+                 "Высокая доля нарушений стандарта ИС СТАТУС"]
+        cmp = M.comparison_with_bank(items)
+        chart_card("Сравнение с Банком",
+                   V.comparison(cmp.name.tolist(), cmp.mine.tolist(), cmp.bank.tolist()),
+                   sub="Моя / По Банку")
+
+    # доп. офисы филиала — визуализация + проваливание
+    offs = M.offices_of_branch(branch)
+    with st.container(border=True):
+        card_header(st, "Доп. офисы филиала", "оценка и светофор · кнопка — детальная карточка")
+        st.plotly_chart(V.office_scores(offs), width="stretch", config=PLOT_CFG)
+        st.caption("Открыть доп. офис:")
+        ocols = st.columns(3)
+        for i, row in offs.iterrows():
+            label = f'{row["rank"]}. {row["vsp"].split(" / ")[0]}'
+            if ocols[i % 3].button(label, key="drill_o_" + row["vsp"], width="stretch"):
+                ss.level = "Доп. офис"; ss.office = row["vsp"]; st.rerun()
+
+
+def view_branch(ptype, period_label):
+    branch = ss.branch
+    bc1, bc2 = st.columns([0.14, 0.86])
+    if bc1.button("← К банку", width="stretch"):
+        ss.level = "Банк"; st.rerun()
+    sel = bc2.selectbox("Филиал", M.BRANCHES, index=M.BRANCHES.index(branch),
+                        label_visibility="collapsed")
+    if sel != branch:
+        ss.branch = sel; ss.office = None; st.rerun()
+
+    st.markdown(f'<div class="h1">{branch}</div>', unsafe_allow_html=True)
+    director = M.branches_summary().set_index("branch").loc[branch, "director"]
+
+    tabs = st.tabs(["Обзор", "Детализация по отклонениям", "Ассистент"])
+    with tabs[0]:
+        st.markdown(f'<div class="h-sub">Руководитель: {director} · период: {period_label}</div>',
+                    unsafe_allow_html=True)
+        branch_overview(branch, ptype)
+    with tabs[1]:
+        st.markdown('<div class="h-sub">Все показатели за период из календаря ниже</div>',
+                    unsafe_allow_html=True)
+        detail_view("br:" + branch, "по филиалу", 5)
+    with tabs[2]:
+        chat_view("филиал " + branch)
+
+
+# ------------------------------- АССИСТЕНТ -------------------------------
+def assistant_reply(scope, q):
+    """Реальный ответ через Claude API, если задан ANTHROPIC_API_KEY; иначе демо-эвристика."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            import anthropic
+            client = anthropic.Anthropic()
+            ctx = M.assistant_context(scope)
+            msg = client.messages.create(
+                model=os.environ.get("CLAUDE_MODEL", "claude-opus-4-8"),
+                max_tokens=600,
+                system=("Ты ассистент по мониторингу качества работы руководителей ВСП. "
+                        "Отвечай кратко, по-русски, опираясь только на переданные данные."),
+                messages=[{"role": "user", "content": f"Данные объекта:\n{ctx}\n\nВопрос: {q}"}],
+            )
+            return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+        except Exception:
+            return M.assistant_answer(scope, q)
+    return M.assistant_answer(scope, q)
+
+
+def chat_view(scope):
+    key = "chat:" + scope
+    if key not in ss:
+        ss[key] = [("assistant", f"Здравствуйте! Помогу разобраться со статистикой по «{scope}». "
+                                 "Спросите, что проседает, как дела на фоне Банка или что в норме.")]
+    st.markdown('<div class="demo">Демо-ассистент: отвечает по данным объекта. '
+                'Подключите ANTHROPIC_API_KEY — и он будет отвечать через Claude по всему срезу данных.</div>',
+                unsafe_allow_html=True)
+    st.write("")
+    chips = ["Что больше всего проседает?", "Сравнение с Банком", "Что в норме?",
+             "Как дела с вакансиями?", "Моё место в рейтинге?"]
+    ccols = st.columns(len(chips))
+    pending = None
+    for i, ch in enumerate(chips):
+        if ccols[i].button(ch, key=key + "_chip" + str(i), width="stretch"):
+            pending = ch
+    for who, text in ss[key]:
+        st.chat_message(who, avatar="🟢" if who == "assistant" else None).write(text)
+    typed = st.chat_input("Ваш вопрос…", key=key + "_in")
+    q = typed or pending
+    if q:
+        ss[key].append(("user", q))
+        ss[key].append(("assistant", assistant_reply(scope, q)))
+        st.rerun()
+
+
+# ------------------------------- ROUTER -------------------------------
+top = st.container()
+with top:
+    bc, sc = st.columns([0.62, 0.38])
+    bc.markdown('<div style="font-weight:800;font-size:16px;color:#13201a;padding-top:6px">'
+                '🟢&nbsp; Мониторинг качества работы руководителей ВСП</div>', unsafe_allow_html=True)
+    with sc:
+        level = seg("Уровень", ["Банк", "Филиал", "Доп. офис"], key="level")
+st.divider()
+
+if level == "Банк":
+    view_bank()
+elif level == "Филиал":
+    view_branch(ptype, period_label)
+else:
+    view_office(ptype, period_label)

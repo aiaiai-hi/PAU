@@ -92,8 +92,56 @@ html, body, [class*="css"] { font-family:'Manrope',system-ui,sans-serif; }
 /* демо-плашка ассистента */
 .demo { font-size:12px; color:#8a6d1f; background:#fff7e3; border:1px solid #f0e2b4;
    border-radius:9px; padding:8px 12px; }
-</style>
-""", unsafe_allow_html=True)
+
+/* ---- убираем верхнюю плашку Streamlit (deploy/share), чтобы не перекрывала меню ---- */
+header[data-testid="stHeader"] { height:0; background:transparent; }
+[data-testid="stToolbar"], [data-testid="stStatusWidget"], [data-testid="stDecoration"] { display:none !important; }
+#MainMenu, footer { visibility:hidden; }
+
+/* ---- сайдбар: гарантированно тёмный фон ---- */
+section[data-testid="stSidebar"], section[data-testid="stSidebar"] > div { background:#0f1a14 !important; }
+section[data-testid="stSidebar"] [data-testid="stButtonGroup"] { background:#0c1812; border:1px solid #2c3d33;
+   border-radius:10px; padding:4px; }
+section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:#bcd2c6; }
+
+/* ====== Рейтинг филиалов (HTML) ====== */
+.rank-table { font-size:13px; }
+.rt-head, .rt-row { display:grid; grid-template-columns:42px 2.3fr .8fr .55fr 2fr .9fr;
+   align-items:center; gap:8px; padding:11px 10px; }
+.rt-head { color:#8a988f; font-size:11px; text-transform:uppercase; letter-spacing:.4px;
+   font-weight:700; border-bottom:1px solid #e4ebe6; }
+.rt-row { border-bottom:1px solid #eef2ef; }
+.rt-row:last-child { border-bottom:none; }
+.rt-row.hl { background:#eef8f1; border-radius:12px; }
+.rt-rank { display:grid; place-items:center; width:30px; height:30px; border-radius:9px;
+   background:#e8f6ee; color:#157a3a; font-weight:800; font-family:'JetBrains Mono',monospace; }
+.rt-name { font-weight:700; color:#13201a; line-height:1.2; }
+.rt-name small { display:block; color:#8a988f; font-weight:500; font-size:12px; margin-top:2px; }
+.rt-num { font-family:'JetBrains Mono',monospace; font-weight:700; text-align:right; }
+.rt-dist { display:flex; gap:6px; flex-wrap:wrap; }
+.cnt { display:inline-flex; align-items:center; gap:4px; font-family:'JetBrains Mono',monospace;
+   font-weight:700; font-size:12px; padding:3px 9px; border-radius:20px; }
+.cnt .led { width:8px; height:8px; border-radius:50%; }
+.cnt.g { background:#e6f6ec; color:#1c7d41; } .cnt.g .led { background:#3bb564; }
+.cnt.y { background:#fdf6e0; color:#9a7708; } .cnt.y .led { background:#f2c12e; }
+.cnt.r { background:#fdeae8; color:#b32d23; } .cnt.r .led { background:#e0463a; }
+.rt-delta { font-family:'JetBrains Mono',monospace; font-weight:700; text-align:right; }
+.rt-delta.up { color:#e0463a; } .rt-delta.down { color:#3bb564; } .rt-delta.zero { color:#8a988f; }
+
+/* ====== Топ отклонений (HTML) ====== */
+.dev-table { font-size:13px; }
+.dv-head, .dv-row { display:grid; grid-template-columns:2.6fr .5fr 2.1fr .7fr .55fr;
+   align-items:center; gap:10px; padding:12px 10px; }
+.dv-head { color:#8a988f; font-size:11px; text-transform:uppercase; letter-spacing:.4px;
+   font-weight:700; border-bottom:1px solid #e4ebe6; }
+.dv-row { border-bottom:1px solid #eef2ef; }
+.dv-row:last-child { border-bottom:none; }
+.dv-name { font-weight:600; color:#13201a; line-height:1.25; }
+.dv-prev { display:flex; align-items:center; gap:10px; }
+.dv-bar { flex:1; height:8px; border-radius:6px; background:#e4ebe6; overflow:hidden; min-width:50px; }
+.dv-bar i { display:block; height:100%; border-radius:6px; }
+.dv-num { font-family:'JetBrains Mono',monospace; font-weight:700; text-align:right; }
+</style>""", unsafe_allow_html=True)
 
 # ------------------------------ состояние ------------------------------
 ss = st.session_state
@@ -168,6 +216,61 @@ def chart_card(title, fig, sub=""):
 
 
 # ------------------------------- уровень БАНК -------------------------------
+def _delta_html(d):
+    if d == 0:
+        return '<div class="rt-delta zero">0</div>'
+    if d < 0:   # поднялся в рейтинге — хорошо
+        return f'<div class="rt-delta down">▲ {abs(d)}</div>'
+    return f'<div class="rt-delta up">▼ {d}</div>'
+
+
+def html_rank_table(brs):
+    head = ('<div class="rt-head"><div>#</div><div>Филиал</div><div class="rt-num">Оценка</div>'
+            '<div class="rt-num">ВСП</div><div>Распределение по офисам</div>'
+            '<div class="rt-num">Δ&nbsp;позиций</div></div>')
+    rows = []
+    for i, r in brs.reset_index(drop=True).iterrows():
+        hl = " hl" if i == 0 else ""
+        dist = (f'<div class="rt-dist">'
+                f'<span class="cnt g"><span class="led"></span>{int(r["g"])}</span>'
+                f'<span class="cnt y"><span class="led"></span>{int(r["y"])}</span>'
+                f'<span class="cnt r"><span class="led"></span>{int(r["r"])}</span></div>')
+        rows.append(
+            f'<div class="rt-row{hl}">'
+            f'<div class="rt-rank">{int(r["rank"])}</div>'
+            f'<div class="rt-name">{r["branch"]}<small>{r["director"]}</small></div>'
+            f'<div class="rt-num">{int(r["score"])}</div>'
+            f'<div class="rt-num">{int(r["offices"])}</div>'
+            f'{dist}{_delta_html(int(r["delta"]))}</div>')
+    return f'<div class="rank-table">{head}{"".join(rows)}</div>'
+
+
+def html_dev_list(td):
+    head = ('<div class="dv-head"><div>Отклонение</div><div class="dv-num">Вес</div>'
+            '<div>Пораженность</div><div class="dv-num">Оценка</div><div class="dv-num">Срок</div></div>')
+    rows = []
+    for _, d in td.iterrows():
+        p = float(d["prevalence"])
+        color = "#e0463a" if p > 30 else ("#ec7a3c" if p > 10 else "#1A9E4B")
+        w = min(100, p * 1.6 + 8)
+        rows.append(
+            f'<div class="dv-row">'
+            f'<div class="dv-name">{d["name"]}</div>'
+            f'<div class="dv-num">{int(d["weight"])}</div>'
+            f'<div class="dv-prev"><div class="dv-bar"><i style="width:{w:.0f}%;background:{color}"></i></div>'
+            f'<b class="dv-num">{p:.1f}%</b></div>'
+            f'<div class="dv-num">{float(d["score"]):.2f}</div>'
+            f'<div class="dv-num">{float(d["life"]):.1f}</div></div>')
+    return f'<div class="dev-table">{head}{"".join(rows)}</div>'
+
+
+def _bank_drill():
+    v = ss.get("bank_drill")
+    if v and v != "— выберите филиал —":
+        ss.level = "Филиал"; ss.branch = v; ss.office = None
+        ss.bank_drill = "— выберите филиал —"
+
+
 def view_bank():
     bs = M.bank_summary()
     brs = M.branches_summary()
@@ -177,31 +280,23 @@ def view_bank():
 
     c = st.columns(4)
     kpi(c[0], "Средняя интегральная оценка", str(bs["avg"]).replace(".", ","), "▲ 2,4 к прошлой неделе")
-    kpi(c[1], "Офисов в зелёной зоне", f'{bs["g"]} / {bs["offices"]}',
+    kpi(c[1], "Офисов в зелёной зоне", f'{bs["g"]} <span style="font-size:18px;color:#8a988f">/ {bs["offices"]}</span>',
         f'{round(bs["g"]/bs["offices"]*100)}% сети', "g")
     kpi(c[2], "Офисов в жёлтой зоне", bs["y"], "требуют внимания", "y")
     kpi(c[3], "Офисов в красной зоне", bs["r"], "▼ 3 офиса за период", "r")
 
     st.write("")
-    left, right = st.columns([1.35, 1])
+    left, right = st.columns([1.4, 1])
     with left:
         with st.container(border=True):
-            card_header(st, "Рейтинг филиалов", "распределение офисов по зонам")
-            st.plotly_chart(V.branches_distribution(brs), width="stretch", config=PLOT_CFG)
-            st.caption("Провалиться в филиал:")
-            bcols = st.columns(3)
-            for i, row in brs.iterrows():
-                if bcols[i % 3].button(f'{row["rank"]}. {row["branch"]}',
-                                       key="drill_b_" + row["branch"], width="stretch"):
-                    ss.level = "Филиал"; ss.branch = row["branch"]; st.rerun()
+            card_header(st, "Рейтинг филиалов", "выберите филиал ниже, чтобы провалиться")
+            st.markdown(html_rank_table(brs), unsafe_allow_html=True)
+            st.selectbox("Провалиться в филиал", ["— выберите филиал —"] + list(brs.branch),
+                         key="bank_drill", on_change=_bank_drill, label_visibility="collapsed")
     with right:
-        td = M.bank_top_deviations()
-        chart_card("Топ отклонений по Банку",
-                   V.hbar(td.name.tolist(), td.prevalence.tolist(), fmt="{:.1f}", suffix="%",
-                          xtitle="средняя пораженность, %"),
-                   sub="по средней пораженности")
-        chart_card("Распределение сети по зонам",
-                   V.zones_donut(bs["g"], bs["y"], bs["r"]))
+        with st.container(border=True):
+            card_header(st, "Топ отклонений по Банку", "средняя пораженность, %")
+            st.markdown(html_dev_list(M.bank_top_deviations()), unsafe_allow_html=True)
 
 
 # ------------------------- общий блок: ТОП-3 офиса -------------------------

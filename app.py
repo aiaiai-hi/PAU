@@ -152,12 +152,14 @@ section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:
    height:100%; box-sizing:border-box; }
 .card .card-h { margin:8px 0 4px; }
 
-/* ---- белый фон у карточек (bordered containers) ---- */
-div[data-testid="stVerticalBlockBorderWrapper"] { background:#ffffff !important; border:1px solid #e4ebe6 !important;
-   border-radius:16px; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05);
+/* ---- стиль рамочных контейнеров (фон задаётся темой: secondaryBackgroundColor=#fff) ---- */
+div[data-testid="stVerticalBlockBorderWrapper"] { border:1px solid #e4ebe6 !important;
+   border-radius:16px !important; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05) !important;
    height:100%; box-sizing:border-box; }
-div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
-   background:#ffffff !important; border-radius:15px; }
+div[data-testid="stVerticalBlockBorderWrapper"],
+div[data-testid="stVerticalBlockBorderWrapper"] > div,
+div[data-testid="stVerticalBlockBorderWrapper"] > div > div {
+   background-color:#ffffff !important; }
 
 /* ====== таблицы множителей / сравнения (HTML) ====== */
 .mtab { font-size:13px; }

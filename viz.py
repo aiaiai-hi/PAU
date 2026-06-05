@@ -54,21 +54,47 @@ def gauge(score, vmax=180):
 
 
 def dynamics(dates, ranks):
+    """Стек-бары по зонам (зелёная/жёлтая/красная) + линия позиции с подписями."""
+    green = [r for r in ranks]
+    yellow = [max(0, 90 - r) for r in ranks]
+    orange = [80 for _ in ranks]
     fig = go.Figure()
-    fig.add_hrect(y0=0, y1=60, fillcolor=TL_G, opacity=0.16, line_width=0)
-    fig.add_hrect(y0=60, y1=120, fillcolor=TL_Y, opacity=0.16, line_width=0)
-    fig.add_hrect(y0=120, y1=180, fillcolor=TL_O, opacity=0.16, line_width=0)
+    fig.add_trace(go.Bar(x=dates, y=green, name="Зелёная зона", marker_color="#9bc53d", width=0.55,
+                         hovertemplate="%{x}<br>зелёная: %{y}<extra></extra>"))
+    fig.add_trace(go.Bar(x=dates, y=yellow, name="Жёлтая зона", marker_color="#f2d65a", width=0.55,
+                         hoverinfo="skip"))
+    fig.add_trace(go.Bar(x=dates, y=orange, name="Красная зона", marker_color="#ef9d6b", width=0.55,
+                         hoverinfo="skip"))
     fig.add_trace(go.Scatter(
-        x=dates, y=ranks, mode="lines+markers+text",
+        x=dates, y=ranks, mode="lines+markers+text", name="Позиция",
         text=[str(r) for r in ranks], textposition="top center",
-        textfont=dict(family=MONO, size=12, color=INK),
-        line=dict(color="#2b5d8a", width=3),
-        marker=dict(size=10, color="#2b5d8a", line=dict(color="white", width=1.5)),
+        textfont=dict(family=MONO, size=13, color=INK),
+        line=dict(color="#2b5d8a", width=2.5),
+        marker=dict(size=9, color="#2b5d8a", line=dict(color="white", width=1.5)),
         hovertemplate="%{x}: место %{y}<extra></extra>"))
-    fig.update_yaxes(range=[180, 0], showgrid=False, zeroline=False,
-                     title="место", title_font=dict(size=11, color=INK3))
+    fig.update_layout(barmode="stack", bargap=0.35)
+    fig.update_yaxes(range=[0, 185], visible=False)
     fig.update_xaxes(showgrid=False, tickfont=dict(family=MONO, size=11, color=INK2))
-    return _base(fig, h=300)
+    return _base(fig, h=330, legend=True)
+
+
+def top3_dynamics():
+    """Мультилайн «Динамика оценки ТОП-3» (как на скрине эталона)."""
+    dates = ["29.05", "04.06", "12.06", "18.06"]
+    series = [
+        ("Доля операций с БМО", "#2b8fd6", [9.0, 8.8, 8.6, 9.8]),
+        ("Длительные вакансии", "#e0463a", [2.6, 2.5, 3.4, 1.9]),
+        ("Нарушения ИС СТАТУС", "#6b7a72", [1.9, 1.9, 1.9, 1.8]),
+        ("Непроизводит. время", "#ec9a3c", [0.6, 2.5, 0.3, 0.4]),
+    ]
+    fig = go.Figure()
+    for name, c, d in series:
+        fig.add_trace(go.Scatter(x=dates, y=d, mode="lines+markers", name=name,
+                                 line=dict(color=c, width=2.6), marker=dict(size=7, color=c),
+                                 hovertemplate=name + ": %{y}<extra></extra>"))
+    fig.update_yaxes(range=[0, 11], showgrid=True, gridcolor=LINE, zeroline=False)
+    fig.update_xaxes(showgrid=False, tickfont=dict(family=MONO, size=11, color=INK2))
+    return _base(fig, h=330, legend=True)
 
 
 def hbar(names, values, colors=None, fmt="{:.1f}", suffix="", xtitle=None, height=None):

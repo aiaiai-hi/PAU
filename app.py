@@ -12,6 +12,7 @@ import os
 from datetime import date
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 import mock_data as M
 import viz as V
@@ -152,14 +153,14 @@ section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button p { color:
    height:100%; box-sizing:border-box; }
 .card .card-h { margin:8px 0 4px; }
 
-/* ---- стиль рамочных контейнеров (фон задаётся темой: secondaryBackgroundColor=#fff) ---- */
+/* ---- стиль рамочных контейнеров ---- */
+:root { --secondary-background-color: #ffffff; }
 div[data-testid="stVerticalBlockBorderWrapper"] { border:1px solid #e4ebe6 !important;
    border-radius:16px !important; box-shadow:0 1px 2px rgba(20,40,30,.05),0 6px 22px rgba(20,40,30,.05) !important;
-   height:100%; box-sizing:border-box; }
-div[data-testid="stVerticalBlockBorderWrapper"],
-div[data-testid="stVerticalBlockBorderWrapper"] > div,
-div[data-testid="stVerticalBlockBorderWrapper"] > div > div {
+   height:100%; box-sizing:border-box;
    background-color:#ffffff !important; }
+.stApp div[data-testid="stVerticalBlockBorderWrapper"] > div {
+   background-color:#ffffff !important; border-radius:15px; }
 
 /* ====== таблицы множителей / сравнения (HTML) ====== */
 .mtab { font-size:13px; }
@@ -197,6 +198,26 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_cont
 [data-testid="stHorizontalBlock"] > [data-testid="column"] { display: flex; flex-direction: column; }
 [data-testid="stHorizontalBlock"] > [data-testid="column"] > div { flex: 1; display: flex; flex-direction: column; }
 </style>""", unsafe_allow_html=True)
+
+# Принудительно белый фон bordered-контейнеров через JS (перебивает emotion-CSS Streamlit)
+components.html("""<script>
+(function(){
+  function fix(){
+    try{
+      var d=window.parent.document;
+      d.documentElement.style.setProperty('--secondary-background-color','#ffffff');
+      d.querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"]').forEach(function(el){
+        el.style.backgroundColor='#ffffff';
+        el.querySelectorAll('[data-testid="stVerticalBlock"]').forEach(function(i){
+          i.style.backgroundColor='#ffffff';
+        });
+      });
+    }catch(e){}
+  }
+  fix();
+  try{new MutationObserver(fix).observe(window.parent.document.body,{childList:true,subtree:true});}catch(e){}
+})();
+</script>""", height=0, scrolling=False)
 
 # ------------------------------ состояние ------------------------------
 ss = st.session_state
